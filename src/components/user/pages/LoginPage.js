@@ -1,17 +1,17 @@
 // -----------------------------------------------------------------------------
-// -apiClient 인터셉터 반영했습니다.
-// - 응답 규격: { resultCode, resultMsg, resultTime, data: { token, member } }
-// - apiClient 인터셉터: 성공 시 data 그대로 반환, 실패 시 Error(resultMsg) throw
+// LoginPage.js - 로그인 페이지
+// - 저장소: '로그인 유지' 체크 시 localStorage, 아니면 sessionStorage
+// - 응답 규격 가정: { resultCode, resultMsg, data: { token, member } }
 // -----------------------------------------------------------------------------
 
 import React, { useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { login } from "lib/apiClient";
-
-const EMAIL_RE =
-  /^(([^<>()[\]\\.,;:\s@"]+(\.[^<>()[\]\\.,;:\s@"]+)*)|(".+"))@(([^.\s@]+\.)+[^.\s@]{2,})$/i;
+import { login } from "../../../lib/apiClient";
 
 const h = React.createElement;
+
+// 이메일 최소 포맷 검증합니다. 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function LoginPage({ onSuccess }) {
   const [form, setForm] = useState({ userEmail: "", userPw: "" });
@@ -27,20 +27,20 @@ export default function LoginPage({ onSuccess }) {
   const isPwValid = useMemo(() => (form.userPw || "").length >= 8, [form.userPw]);
   const isFormValid = isEmailValid && isPwValid;
 
-  const onChange = (e) => {
+  function onChange(e) {
     const { name, value, type, checked } = e.target;
-    if (name === "rememberMe" && type === "checkbox") {
+    if (type === "checkbox") {
       setRememberMe(checked);
       return;
     }
     setForm((prev) => ({ ...prev, [name]: value }));
-  };
+  }
 
-  const onSubmit = async (e) => {
+  async function onSubmit(e) {
     e.preventDefault();
     if (loading) return;
 
-    if (!form.userEmail.trim()) return setMsg("ID를 입력해주세요.");
+    if (!form.userEmail.trim()) return setMsg("이메일을 입력해주세요.");
     if (!form.userPw) return setMsg("비밀번호를 입력해주세요.");
     if (!isEmailValid) return setMsg("이메일 형식을 확인해주세요.");
     if (!isPwValid) return setMsg("비밀번호는 8자 이상이어야 합니다.");
@@ -49,9 +49,8 @@ export default function LoginPage({ onSuccess }) {
       setLoading(true);
       setMsg("");
 
-      // ✅ apiClient 인터셉터 기준: 성공 시 resp = { resultCode, resultMsg, data: {...} }
+      // apiClient 인터셉터 기준: 성공 시 { resultCode, resultMsg, data } 반환합니다. 
       const resp = await login({ userEmail: form.userEmail.trim(), userPw: form.userPw });
-
       const token = resp?.data?.token;
       const member = resp?.data?.member || null;
 
@@ -62,27 +61,23 @@ export default function LoginPage({ onSuccess }) {
       }
 
       setMsg("로그인에 성공했습니다.");
-      onSuccess?.(member);
+      try { onSuccess?.(member); } catch (_) {}
 
+      // 리다이렉트 우선, 없으면 뒤로가기 -> 홈!
       if (redirectTo) {
         navigate(redirectTo, { replace: true });
       } else {
-        // 히스토리가 없을 수 있으니 홈으로 폴백
-        try {
-          navigate(-1);
-        } catch {
-          navigate("/", { replace: true });
-        }
+        try { navigate(-1); } catch { navigate("/", { replace: true }); }
       }
     } catch (err) {
-      // 인터셉터가 서버 resultMsg로 Error를 던져줌
+      // 인터셉터에서 서버 메시지로 Error 던짐을 가정~
       setMsg(err?.message || "로그인 중 오류가 발생했습니다.");
       // eslint-disable-next-line no-console
       console.error("Login Error:", err);
     } finally {
       setLoading(false);
     }
-  };
+  }
 
   return h(
     "div",
@@ -98,16 +93,15 @@ export default function LoginPage({ onSuccess }) {
         h("label", { htmlFor: "email", className: "form-label" }, "이메일(ID)"),
         h("input", {
           id: "email",
-          className:
-            "form-control " + (form.userEmail && !isEmailValid ? "is-invalid" : ""),
           name: "userEmail",
           value: form.userEmail,
           onChange,
+          className: "form-control " + (form.userEmail && !isEmailValid ? "is-invalid" : ""),
           type: "email",
           inputMode: "email",
           autoComplete: "email",
-          required: true,
           placeholder: "example@routy.com",
+          required: true,
         }),
         form.userEmail &&
           !isEmailValid &&
@@ -120,15 +114,15 @@ export default function LoginPage({ onSuccess }) {
         h("label", { htmlFor: "password", className: "form-label" }, "비밀번호"),
         h("input", {
           id: "password",
-          className: "form-control " + (form.userPw && !isPwValid ? "is-invalid" : ""),
           name: "userPw",
           value: form.userPw,
           onChange,
+          className: "form-control " + (form.userPw && !isPwValid ? "is-invalid" : ""),
           type: "password",
           autoComplete: "current-password",
           minLength: 8,
+          placeholder: "8자 이상 권장",
           required: true,
-          placeholder: "8자 이상, 영문/숫자/특수문자 조합 권장",
         }),
         form.userPw &&
           !isPwValid &&
@@ -156,11 +150,7 @@ export default function LoginPage({ onSuccess }) {
           { className: "d-flex gap-3" },
           h(
             "button",
-            {
-              type: "button",
-              className: "btn btn-link p-0",
-              onClick: () => navigate("/signup"),
-            },
+            { type: "button", className: "btn btn-link p-0", onClick: () => navigate("/signup") },
             "회원가입"
           ),
           h(
@@ -177,22 +167,13 @@ export default function LoginPage({ onSuccess }) {
       // 제출
       h(
         "button",
-        {
-          className: "btn btn-primary w-100",
-          type: "submit",
-          disabled: loading || !isFormValid,
-        },
+        { className: "btn btn-primary w-100", type: "submit", disabled: loading || !isFormValid },
         loading ? "처리 중..." : "로그인"
       )
     ),
     // 상태 메시지
-    msg &&
-      h(
-        "p",
-        { className: "mt-3 text-center text-muted", "aria-live": "polite" },
-        msg
-      ),
-    // SNS 로그인 (라우팅만 연결)
+    msg && h("p", { className: "mt-3 text-center text-muted", "aria-live": "polite" }, msg),
+    // SNS 로그인 (라우팅만 연결 – 실제 OAuth는 이후 연동합니다. )
     h("hr", { className: "my-4" }),
     h(
       "div",
